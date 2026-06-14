@@ -6,6 +6,8 @@ export interface PassageData {
   source: string;
 }
 
+export type PassageLengthUnit = "chars" | "lines";
+
 interface WikiSummary {
   type: string;
   title: string;
@@ -87,6 +89,57 @@ function trimToSentences(text: string, maxWords: number): string {
   return result.join(" ");
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getLengthOptions(
+  searchParams: URLSearchParams,
+  direction: "en_to_vi" | "vi_to_en"
+): { unit: PassageLengthUnit; value: number } {
+  const unit: PassageLengthUnit = searchParams.get("lengthUnit") === "lines" ? "lines" : "chars";
+  const rawValue = Number(searchParams.get("lengthValue"));
+  const fallback = direction === "vi_to_en" ? 420 : 900;
+  const value = Number.isFinite(rawValue) ? rawValue : fallback;
+
+  if (unit === "lines") {
+    return { unit, value: clamp(Math.round(value), 2, 8) };
+  }
+
+  const maxChars = direction === "vi_to_en" ? 420 : 1200;
+  return { unit, value: clamp(Math.round(value), 180, maxChars) };
+}
+
+function trimToChars(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+
+  const sentences = text.match(/[^.!?]+[.!?]+/g) ?? [text];
+  const result: string[] = [];
+  let count = 0;
+
+  for (const s of sentences) {
+    const next = s.trim();
+    if (count + next.length + 1 > maxChars && result.length > 0) break;
+    result.push(next);
+    count += next.length + 1;
+  }
+
+  if (result.length > 0) return result.join(" ");
+
+  const clipped = text.slice(0, maxChars).trim();
+  const lastSpace = clipped.lastIndexOf(" ");
+  return `${clipped.slice(0, lastSpace > 80 ? lastSpace : clipped.length).trim()}...`;
+}
+
+function trimToLines(text: string, maxLines: number): string {
+  const sentences = text.match(/[^.!?]+[.!?]+/g) ?? [text];
+  return sentences.slice(0, maxLines).map((s) => s.trim()).join(" ");
+}
+
+function trimByLength(text: string, unit: PassageLengthUnit, value: number): string {
+  return unit === "lines" ? trimToLines(text, value) : trimToChars(text, value);
+}
+
 // Translate English passage to Vietnamese for vi_to_en mode (MyMemory ~450-char limit)
 async function translatePassageToVi(text: string): Promise<string> {
   const truncated = text.slice(0, 420);
@@ -128,6 +181,7 @@ const FALLBACKS: PassageData[] = [
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const direction = searchParams.get("direction") === "vi_to_en" ? "vi_to_en" : "en_to_vi";
+  const length = getLengthOptions(searchParams, direction);
 
   // EN→VI passages: longer (300 words), VI→EN: shorter (70 words) due to MyMemory limit
   const minWords = direction === "vi_to_en" ? 40 : 100;
@@ -145,11 +199,19 @@ export async function GET(req: Request) {
 
   if (!passage) {
     const fallback = FALLBACKS[Math.floor(Math.random() * FALLBACKS.length)];
-    return Response.json(fallback, { headers: { "Cache-Control": "no-store" } });
+    const text = trimByLength(fallback.text, length.unit, length.value);
+    const textVi = direction === "vi_to_en"
+      ? await translatePassageToVi(text)
+      : fallback.textVi;
+
+    return Response.json(
+      { ...fallback, text, textVi, wordCount: text.split(/\s+/).length },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   }
 
   const cleaned = passage.extract.replace(/\n+/g, " ").trim();
-  const text    = trimToSentences(cleaned, trimMax);
+  const text    = trimByLength(trimToSentences(cleaned, trimMax), length.unit, length.value);
   const textVi  = direction === "vi_to_en" ? await translatePassageToVi(text) : "";
 
   const data: PassageData = {

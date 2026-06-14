@@ -4,9 +4,9 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import {
   PenLine, RefreshCw, Loader2, AlertCircle,
   Star, ExternalLink, ChevronDown, ChevronUp,
-  BookOpen, CheckCircle, BarChart3, Lightbulb,
+  BookOpen, CheckCircle, BarChart3, Lightbulb, SlidersHorizontal,
 } from "lucide-react";
-import type { PassageData } from "@/app/api/writing/passage/route";
+import type { PassageData, PassageLengthUnit } from "@/app/api/writing/passage/route";
 import type { ScoreResult } from "@/app/api/writing/score/route";
 import type { HintsData } from "@/app/api/writing/hints/route";
 
@@ -340,6 +340,17 @@ const DIRECTION_TABS: { value: Direction; label: string; hint: string; flag: str
   { value: "vi_to_en", label: "Việt → Anh", hint: "Đọc tiếng Việt, dịch sang tiếng Anh", flag: "🇻🇳→🇬🇧" },
 ];
 
+const LENGTH_LIMITS: Record<PassageLengthUnit, { min: number; max: number; step: number }> = {
+  chars: { min: 180, max: 1200, step: 20 },
+  lines: { min: 2, max: 8, step: 1 },
+};
+
+function clampLength(value: number, unit: PassageLengthUnit, direction: Direction): number {
+  const limits = LENGTH_LIMITS[unit];
+  const max = unit === "chars" && direction === "vi_to_en" ? 420 : limits.max;
+  return Math.min(max, Math.max(limits.min, Math.round(value)));
+}
+
 export default function WritingPage() {
   const [passage, setPassage] = useState<PassageData | null>(null);
   const [direction, setDirection] = useState<Direction>("en_to_vi");
@@ -349,6 +360,9 @@ export default function WritingPage() {
   const [scoreResult, setScoreResult] = useState<ScoreResult | null>(null);
   const [hints, setHints] = useState<HintsData | null>(null);
   const [hintsLoading, setHintsLoading] = useState(false);
+  const [lengthUnit, setLengthUnit] = useState<PassageLengthUnit>("chars");
+  const [lengthValue, setLengthValue] = useState(700);
+  const initialLoadRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scoreRef = useRef<HTMLDivElement>(null);
 
@@ -375,7 +389,13 @@ export default function WritingPage() {
     setHints(null);
     setHintsLoading(false);
     try {
-      const res = await fetch(`/api/writing/passage?direction=${dir}`, { cache: "no-store" });
+      const safeLengthValue = clampLength(lengthValue, lengthUnit, dir);
+      const params = new URLSearchParams({
+        direction: dir,
+        lengthUnit,
+        lengthValue: String(safeLengthValue),
+      });
+      const res = await fetch(`/api/writing/passage?${params.toString()}`, { cache: "no-store" });
       if (!res.ok) throw new Error("fetch_error");
       const data: PassageData = await res.json();
       setPassage(data);
@@ -386,14 +406,19 @@ export default function WritingPage() {
       setErrorMsg("Không thể tải đoạn văn. Vui lòng thử lại.");
       setPageState("error");
     }
-  }, [loadHints]);
+  }, [lengthUnit, lengthValue, loadHints]);
 
-  useEffect(() => { loadPassage("en_to_vi"); }, [loadPassage]);
+  useEffect(() => {
+    if (initialLoadRef.current) return;
+    initialLoadRef.current = true;
+    loadPassage("en_to_vi");
+  }, [loadPassage]);
 
   const handleDirectionChange = useCallback((dir: Direction) => {
     setDirection(dir);
+    setLengthValue((value) => clampLength(value, lengthUnit, dir));
     loadPassage(dir);
-  }, [loadPassage]);
+  }, [lengthUnit, loadPassage]);
 
   const handleScore = useCallback(async () => {
     if (!passage || userText.trim().split(/\s+/).length < 5) return;
@@ -423,9 +448,20 @@ export default function WritingPage() {
     loadPassage(direction);
   }, [loadPassage, direction]);
 
+  const handleLengthUnitChange = useCallback((unit: PassageLengthUnit) => {
+    setLengthUnit(unit);
+    setLengthValue((value) => clampLength(value, unit, direction));
+  }, [direction]);
+
+  const handleLengthBlur = useCallback(() => {
+    setLengthValue((value) => clampLength(value, lengthUnit, direction));
+  }, [direction, lengthUnit]);
+
   const wordCount = userText.trim() ? userText.trim().split(/\s+/).length : 0;
   const canScore = wordCount >= 5 && pageState === "ready";
   const isScoring = pageState === "scoring";
+  const activeLengthLimits = LENGTH_LIMITS[lengthUnit];
+  const activeLengthMax = lengthUnit === "chars" && direction === "vi_to_en" ? 420 : activeLengthLimits.max;
 
   return (
     <div className="mx-auto max-w-5xl px-4 sm:px-6 py-8">
@@ -470,6 +506,66 @@ export default function WritingPage() {
             </button>
           );
         })}
+      </div>
+
+      <div className="mb-6 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="flex items-center gap-2 sm:w-36">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50">
+              <SlidersHorizontal className="h-4 w-4 text-indigo-600" aria-hidden="true" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-slate-800">Độ dài bài</div>
+              <div className="text-xs text-slate-400">Cho bài mới</div>
+            </div>
+          </div>
+
+          <div className="grid flex-1 grid-cols-[1fr_auto] gap-2 sm:grid-cols-[minmax(120px,160px)_minmax(116px,140px)_auto]">
+            <label className="min-w-0">
+              <span className="sr-only">Đơn vị độ dài</span>
+              <select
+                value={lengthUnit}
+                onChange={(e) => handleLengthUnitChange(e.target.value as PassageLengthUnit)}
+                disabled={pageState === "loading" || pageState === "scoring"}
+                className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-50"
+                aria-label="Đơn vị độ dài bài dịch"
+              >
+                <option value="chars">Ký tự</option>
+                <option value="lines">Dòng</option>
+              </select>
+            </label>
+
+            <label className="min-w-0">
+              <span className="sr-only">Giá trị độ dài</span>
+              <input
+                type="number"
+                value={lengthValue}
+                min={activeLengthLimits.min}
+                max={activeLengthMax}
+                step={activeLengthLimits.step}
+                onChange={(e) => setLengthValue(Number(e.target.value))}
+                onBlur={handleLengthBlur}
+                disabled={pageState === "loading" || pageState === "scoring"}
+                className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-50"
+                aria-label="Độ dài bài dịch"
+              />
+            </label>
+
+            <button
+              onClick={handleReset}
+              disabled={pageState === "loading" || pageState === "scoring"}
+              className="col-span-2 flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40 sm:col-span-1"
+            >
+              <RefreshCw className={`h-4 w-4 ${pageState === "loading" ? "animate-spin" : ""}`} aria-hidden="true" />
+              Tạo bài
+            </button>
+          </div>
+        </div>
+        <p className="mt-2 text-xs text-slate-400">
+          {lengthUnit === "lines"
+            ? "Mỗi dòng tương ứng một câu nội dung; số dòng hiển thị thực tế còn phụ thuộc kích thước màn hình."
+            : `Giới hạn hiện tại: ${activeLengthLimits.min}-${activeLengthMax} ký tự.`}
+        </p>
       </div>
 
       {/* Two-column layout on desktop */}
