@@ -152,7 +152,6 @@ function WordCard({ entry, index, level }: { entry: VocabularyEntry; index: numb
           }
         `}
         onClick={() => setExpanded((v) => !v)}
-        aria-expanded={expanded}
         aria-label={`Từ: ${entry.english}`}
       >
         {/* ── Header: icon + word + phonetic + speaker ── */}
@@ -254,14 +253,14 @@ function TopicButton({ topic, isActive, onClick }: { topic: Topic; isActive: boo
       aria-pressed={isActive}
       aria-label={`Chủ đề: ${topic.title} (${topic.titleVi})`}
       className={`
-        w-full flex items-center gap-3 rounded-xl p-3 text-left transition-all duration-150 border
+        w-full flex items-center gap-2.5 lg:gap-3 rounded-xl p-2.5 lg:p-3 text-left transition-all duration-150 border
         ${isActive
           ? `bg-gradient-to-r ${topic.gradient} text-white border-transparent shadow-sm`
           : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700"
         }
       `}
     >
-      <span className="text-xl flex-shrink-0" role="img" aria-hidden="true">{topic.icon}</span>
+      <span className="text-lg lg:text-xl flex-shrink-0" role="img" aria-hidden="true">{topic.icon}</span>
       <div className="min-w-0">
         <div className="text-sm font-semibold truncate">{topic.title}</div>
         <div className={`text-xs truncate ${isActive ? "text-white/80" : "text-slate-400"}`}>{topic.titleVi}</div>
@@ -478,7 +477,7 @@ export default function VocabularyPage() {
   const skeletonCount = wordList ? wordList.length - words.length : 0;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 py-8">
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6 lg:py-8">
       {/* Page header */}
       <div className="mb-6">
         <div className="flex items-center gap-2 text-sm text-slate-500 mb-1">
@@ -491,9 +490,9 @@ export default function VocabularyPage() {
         </p>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6">
+      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
         {/* ── Left panel ── */}
-        <div className="w-full lg:w-72 xl:w-80 flex-shrink-0 space-y-4">
+        <div className="w-full lg:w-72 xl:w-80 flex-shrink-0 space-y-3 lg:space-y-4">
           {/* Search */}
           <div className="relative">
             {isLoadingList && query ? (
@@ -524,10 +523,17 @@ export default function VocabularyPage() {
           </div>
 
           {/* Topic list */}
-          <nav aria-label="Chủ đề từ vựng">
-            <ul className="space-y-1.5" role="list">
+          <nav aria-label="Chủ đề từ vựng" className="-mx-4 px-4 lg:mx-0 lg:px-0">
+            <div className="mb-2 flex items-center justify-between lg:hidden">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Chủ đề</span>
+              <span className="text-xs text-slate-400">Vuốt để xem thêm</span>
+            </div>
+            <ul
+              className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin lg:block lg:space-y-1.5 lg:overflow-visible lg:pb-0"
+              role="list"
+            >
               {topics.map((topic) => (
-                <li key={topic.id}>
+                <li key={topic.id} className="w-40 flex-shrink-0 lg:w-auto">
                   <TopicButton
                     topic={topic}
                     isActive={selectedTopic?.id === topic.id}
