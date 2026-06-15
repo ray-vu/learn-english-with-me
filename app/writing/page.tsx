@@ -4,11 +4,13 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import {
   PenLine, RefreshCw, Loader2, AlertCircle,
   Star, ExternalLink, ChevronDown, ChevronUp,
-  BookOpen, CheckCircle, BarChart3, Lightbulb, SlidersHorizontal,
+  BookOpen, CheckCircle, BarChart3, Lightbulb, SlidersHorizontal, Tag,
 } from "lucide-react";
 import type { PassageData, PassageLengthUnit } from "@/app/api/writing/passage/route";
 import type { ScoreResult } from "@/app/api/writing/score/route";
 import type { HintsData } from "@/app/api/writing/hints/route";
+import type { WritingTopic, WritingTopicsResponse } from "@/app/api/writing/topics/route";
+import SelectableVietnamesePassage from "@/components/writing/SelectableVietnamesePassage";
 
 // ── Score ring ────────────────────────────────────────────────────────────────
 
@@ -332,7 +334,7 @@ function HintsPanel({
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-type PageState = "loading" | "ready" | "scoring" | "scored" | "error";
+type PageState = "idle" | "loading" | "ready" | "scoring" | "scored" | "error";
 type Direction = "en_to_vi" | "vi_to_en";
 
 const DIRECTION_TABS: { value: Direction; label: string; hint: string; flag: string }[] = [
@@ -354,17 +356,38 @@ function clampLength(value: number, unit: PassageLengthUnit, direction: Directio
 export default function WritingPage() {
   const [passage, setPassage] = useState<PassageData | null>(null);
   const [direction, setDirection] = useState<Direction>("en_to_vi");
-  const [pageState, setPageState] = useState<PageState>("loading");
+  const [pageState, setPageState] = useState<PageState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [userText, setUserText] = useState("");
   const [scoreResult, setScoreResult] = useState<ScoreResult | null>(null);
   const [hints, setHints] = useState<HintsData | null>(null);
   const [hintsLoading, setHintsLoading] = useState(false);
+  const [topics, setTopics] = useState<WritingTopic[]>([]);
+  const [selectedTopic, setSelectedTopic] = useState("");
+  const [topicsLoading, setTopicsLoading] = useState(true);
   const [lengthUnit, setLengthUnit] = useState<PassageLengthUnit>("chars");
-  const [lengthValue, setLengthValue] = useState(700);
-  const initialLoadRef = useRef(false);
+  const [lengthValue, setLengthValue] = useState(400);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scoreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/writing/topics")
+      .then((response) => {
+        if (!response.ok) throw new Error("topics_fetch_error");
+        return response.json() as Promise<WritingTopicsResponse>;
+      })
+      .then((data) => {
+        if (active) setTopics(data.topics);
+      })
+      .catch(() => {
+        if (active) setErrorMsg("Không thể tải danh sách chủ đề. Vui lòng tải lại trang.");
+      })
+      .finally(() => {
+        if (active) setTopicsLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
 
   const loadHints = useCallback(async (text: string, dir: Direction) => {
     setHintsLoading(true);
@@ -381,7 +404,17 @@ export default function WritingPage() {
     }
   }, []);
 
+  const clearExercise = useCallback(() => {
+    setPassage(null);
+    setUserText("");
+    setScoreResult(null);
+    setHints(null);
+    setErrorMsg("");
+    setPageState("idle");
+  }, []);
+
   const loadPassage = useCallback(async (dir: Direction) => {
+    if (!selectedTopic) return;
     setPageState("loading");
     setScoreResult(null);
     setUserText("");
@@ -392,6 +425,7 @@ export default function WritingPage() {
       const safeLengthValue = clampLength(lengthValue, lengthUnit, dir);
       const params = new URLSearchParams({
         direction: dir,
+        topic: selectedTopic,
         lengthUnit,
         lengthValue: String(safeLengthValue),
       });
@@ -406,19 +440,18 @@ export default function WritingPage() {
       setErrorMsg("Không thể tải đoạn văn. Vui lòng thử lại.");
       setPageState("error");
     }
-  }, [lengthUnit, lengthValue, loadHints]);
-
-  useEffect(() => {
-    if (initialLoadRef.current) return;
-    initialLoadRef.current = true;
-    loadPassage("en_to_vi");
-  }, [loadPassage]);
+  }, [lengthUnit, lengthValue, loadHints, selectedTopic]);
 
   const handleDirectionChange = useCallback((dir: Direction) => {
     setDirection(dir);
     setLengthValue((value) => clampLength(value, lengthUnit, dir));
-    loadPassage(dir);
-  }, [lengthUnit, loadPassage]);
+    clearExercise();
+  }, [clearExercise, lengthUnit]);
+
+  const handleTopicChange = useCallback((topic: string) => {
+    setSelectedTopic(topic);
+    clearExercise();
+  }, [clearExercise]);
 
   const handleScore = useCallback(async () => {
     if (!passage || userText.trim().split(/\s+/).length < 5) return;
@@ -460,6 +493,7 @@ export default function WritingPage() {
   const wordCount = userText.trim() ? userText.trim().split(/\s+/).length : 0;
   const canScore = wordCount >= 5 && pageState === "ready";
   const isScoring = pageState === "scoring";
+  const canGenerate = Boolean(selectedTopic) && pageState !== "loading" && pageState !== "scoring";
   const activeLengthLimits = LENGTH_LIMITS[lengthUnit];
   const activeLengthMax = lengthUnit === "chars" && direction === "vi_to_en" ? 420 : activeLengthLimits.max;
 
@@ -509,18 +543,37 @@ export default function WritingPage() {
       </div>
 
       <div className="mb-6 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <div className="flex items-center gap-2 sm:w-36">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+          <div className="flex items-center gap-2 lg:w-36 lg:flex-shrink-0">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50">
               <SlidersHorizontal className="h-4 w-4 text-indigo-600" aria-hidden="true" />
             </div>
             <div>
-              <div className="text-sm font-semibold text-slate-800">Độ dài bài</div>
+              <div className="text-sm font-semibold text-slate-800">Thiết lập bài</div>
               <div className="text-xs text-slate-400">Cho bài mới</div>
             </div>
           </div>
 
-          <div className="grid flex-1 grid-cols-[1fr_auto] gap-2 sm:grid-cols-[minmax(120px,160px)_minmax(116px,140px)_auto]">
+          <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-[minmax(180px,1fr)_minmax(110px,140px)_minmax(100px,120px)] lg:grid-cols-[minmax(180px,1fr)_130px_110px_auto]">
+            <label className="col-span-2 min-w-0 sm:col-span-1">
+              <span className="sr-only">Chủ đề bài dịch</span>
+              <div className="relative">
+                <Tag className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                <select
+                  value={selectedTopic}
+                  onChange={(event) => handleTopicChange(event.target.value)}
+                  disabled={topicsLoading || pageState === "loading" || pageState === "scoring"}
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-8 text-sm font-medium text-slate-700 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-50"
+                  aria-label="Chọn chủ đề bài dịch"
+                >
+                  <option value="">{topicsLoading ? "Đang tải chủ đề..." : "Chọn chủ đề bắt buộc"}</option>
+                  {topics.map((topic) => (
+                    <option key={topic.id} value={topic.label}>{topic.label}</option>
+                  ))}
+                </select>
+              </div>
+            </label>
+
             <label className="min-w-0">
               <span className="sr-only">Đơn vị độ dài</span>
               <select
@@ -553,8 +606,8 @@ export default function WritingPage() {
 
             <button
               onClick={handleReset}
-              disabled={pageState === "loading" || pageState === "scoring"}
-              className="col-span-2 flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40 sm:col-span-1"
+              disabled={!canGenerate}
+              className="col-span-2 flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40 sm:col-span-3 lg:col-span-1"
             >
               <RefreshCw className={`h-4 w-4 ${pageState === "loading" ? "animate-spin" : ""}`} aria-hidden="true" />
               Tạo bài
@@ -562,7 +615,9 @@ export default function WritingPage() {
           </div>
         </div>
         <p className="mt-2 text-xs text-slate-400">
-          {lengthUnit === "lines"
+          {!selectedTopic
+            ? "Chọn một chủ đề tiếng Anh từ Wikipedia để bật nút Tạo bài."
+            : lengthUnit === "lines"
             ? "Mỗi dòng tương ứng một câu nội dung; số dòng hiển thị thực tế còn phụ thuộc kích thước màn hình."
             : `Giới hạn hiện tại: ${activeLengthLimits.min}-${activeLengthMax} ký tự.`}
         </p>
@@ -574,13 +629,15 @@ export default function WritingPage() {
         {/* ── Left / main column ── */}
         <div className="space-y-5">
           {/* Error banner */}
-          {pageState === "error" && (
+          {errorMsg && (
             <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 animate-fade-in" role="alert">
               <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" aria-hidden="true" />
               <span className="flex-1">{errorMsg}</span>
-              <button onClick={() => loadPassage(direction)} className="font-medium underline hover:no-underline flex-shrink-0">
-                Thử lại
-              </button>
+              {selectedTopic && (
+                <button onClick={() => loadPassage(direction)} className="font-medium underline hover:no-underline flex-shrink-0">
+                  Thử lại
+                </button>
+              )}
             </div>
           )}
 
@@ -622,7 +679,7 @@ export default function WritingPage() {
               </div>
               <button
                 onClick={handleReset}
-                disabled={isScoring || pageState === "loading"}
+                disabled={!canGenerate}
                 className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                 aria-label="Tải đoạn văn mới"
               >
@@ -640,15 +697,20 @@ export default function WritingPage() {
                 </div>
               ) : passage ? (
                 direction === "vi_to_en" && passage.textVi ? (
-                  <p className="text-base text-slate-800 leading-relaxed" lang="vi">
-                    {passage.textVi}
-                  </p>
+                  <SelectableVietnamesePassage text={passage.textVi} />
                 ) : (
                   <p className="text-base text-slate-800 leading-relaxed" lang="en">
                     {passage.text}
                   </p>
                 )
-              ) : null}
+              ) : (
+                <div className="flex min-h-24 flex-col items-center justify-center text-center">
+                  <BookOpen className="mb-2 h-6 w-6 text-slate-300" aria-hidden="true" />
+                  <p className="text-sm font-medium text-slate-500">
+                    {selectedTopic ? "Nhấn Tạo bài để bắt đầu" : "Chọn chủ đề trước khi tạo bài"}
+                  </p>
+                </div>
+              )}
             </div>
 
             {passage && (

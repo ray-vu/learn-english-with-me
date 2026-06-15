@@ -15,30 +15,11 @@ interface WikiSummary {
   content_urls?: { desktop?: { page?: string } };
 }
 
-// ── Curated everyday-life / work topics ───────────────────────────────────────
-// Only topics that map to clean Wikipedia "standard" article summaries
+interface CategoryMember {
+  title?: string;
+}
 
-const EVERYDAY_TOPICS = [
-  // Food & drink
-  "Coffee", "Tea", "Breakfast", "Baking", "Cooking", "Restaurant",
-  "Street food", "Vegetarianism", "Coffee culture", "Brunch",
-  // Health & wellness
-  "Yoga", "Meditation", "Exercise", "Jogging", "Cycling", "Swimming",
-  "Hiking", "Sleep", "Nutrition", "Mental health", "Mindfulness",
-  // People & emotions
-  "Friendship", "Happiness", "Laughter", "Gratitude", "Motivation",
-  "Creativity", "Optimism",
-  // Work & learning
-  "Remote work", "Teamwork", "Productivity", "Leadership",
-  "Learning", "Reading", "Podcast", "Library", "Bookstore",
-  // Leisure & hobbies
-  "Photography", "Gardening", "Music", "Dance", "Fashion",
-  "Online shopping", "Tourism", "Hotel", "Backpacking",
-  // Technology & society
-  "Social media", "Smartphone", "Email", "Commuting",
-  // Pets & nature
-  "Dog", "Cat", "Flower", "Bird",
-];
+const WIKIPEDIA_API = "https://en.wikipedia.org/w/api.php";
 
 // ── Wikipedia fetch by topic title ───────────────────────────────────────────
 
@@ -55,6 +36,55 @@ async function fetchWikiTopic(title: string): Promise<WikiSummary | null> {
     return res.json();
   } catch {
     return null;
+  }
+}
+
+async function fetchCategoryArticles(topic: string): Promise<string[]> {
+  try {
+    const params = new URLSearchParams({
+      action: "query",
+      list: "categorymembers",
+      cmtitle: `Category:${topic}`,
+      cmnamespace: "0",
+      cmtype: "page",
+      cmlimit: "50",
+      format: "json",
+      origin: "*",
+    });
+    const response = await fetch(`${WIKIPEDIA_API}?${params}`, {
+      cache: "no-store",
+      headers: { "User-Agent": "LearnEnglishApp/1.0 (educational tool)" },
+    });
+    if (!response.ok) return [];
+    const data = await response.json();
+    const members: CategoryMember[] = data?.query?.categorymembers ?? [];
+    return members.map((member) => member.title?.trim() ?? "").filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+async function searchTopicArticles(topic: string): Promise<string[]> {
+  try {
+    const params = new URLSearchParams({
+      action: "query",
+      list: "search",
+      srsearch: topic,
+      srnamespace: "0",
+      srlimit: "20",
+      format: "json",
+      origin: "*",
+    });
+    const response = await fetch(`${WIKIPEDIA_API}?${params}`, {
+      cache: "no-store",
+      headers: { "User-Agent": "LearnEnglishApp/1.0 (educational tool)" },
+    });
+    if (!response.ok) return [];
+    const data = await response.json();
+    const results: CategoryMember[] = data?.query?.search ?? [];
+    return results.map((result) => result.title?.trim() ?? "").filter(Boolean);
+  } catch {
+    return [];
   }
 }
 
@@ -99,7 +129,7 @@ function getLengthOptions(
 ): { unit: PassageLengthUnit; value: number } {
   const unit: PassageLengthUnit = searchParams.get("lengthUnit") === "lines" ? "lines" : "chars";
   const rawValue = Number(searchParams.get("lengthValue"));
-  const fallback = direction === "vi_to_en" ? 420 : 900;
+  const fallback = 400;
   const value = Number.isFinite(rawValue) ? rawValue : fallback;
 
   if (unit === "lines") {
@@ -157,61 +187,51 @@ async function translatePassageToVi(text: string): Promise<string> {
   }
 }
 
-// ── Fallbacks ─────────────────────────────────────────────────────────────────
-
-const FALLBACKS: PassageData[] = [
-  {
-    title: "Coffee Culture",
-    text: "Coffee culture describes a social atmosphere or series of associated social behaviors that depends heavily upon coffee, particularly as a social lubricant. Many cafes serve as gathering places where people meet, work, or relax. The rise of specialty coffee shops has transformed coffee from a simple beverage into a craft and a lifestyle. People now discuss the origin of beans, brewing methods, and roasting profiles as part of their daily conversations. For many professionals, working from a cafe has become a popular alternative to the traditional office environment.",
-    textVi: "Văn hóa cà phê mô tả một không khí xã hội phụ thuộc nhiều vào cà phê, đặc biệt như một chất xúc tác xã hội. Nhiều quán cà phê phục vụ như những nơi gặp gỡ để mọi người gặp nhau, làm việc hoặc thư giãn. Sự trỗi dậy của các quán cà phê đặc sản đã biến cà phê từ một thức uống đơn giản thành một nghề thủ công và một phong cách sống.",
-    wordCount: 88,
-    source: "https://en.wikipedia.org/wiki/Coffee_culture",
-  },
-  {
-    title: "Friendship",
-    text: "Friendship is a relationship of mutual affection between people. It is a stronger form of interpersonal bond than an association and has been studied in academic fields such as communication, sociology, social psychology, anthropology, and philosophy. Various academic theories of friendship have been proposed, including social exchange theory, equity theory, relational dialectics, and attachment styles. Although there are many forms of friendship, some of which may vary from place to place, certain characteristics are present in many types of friendship. Such characteristics include affection, sympathy, empathy, honesty, altruism, mutual understanding, and compassion.",
-    textVi: "Tình bạn là mối quan hệ yêu thương lẫn nhau giữa mọi người. Đây là một hình thức liên kết giữa các cá nhân mạnh mẽ hơn một sự liên kết thông thường. Nhiều loại lý thuyết học thuật về tình bạn đã được đề xuất. Các đặc điểm của tình bạn bao gồm tình cảm, sự đồng cảm, lòng trung thực và sự hiểu biết lẫn nhau.",
-    wordCount: 92,
-    source: "https://en.wikipedia.org/wiki/Friendship",
-  },
-];
-
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const direction = searchParams.get("direction") === "vi_to_en" ? "vi_to_en" : "en_to_vi";
+  const topic = searchParams.get("topic")?.trim() ?? "";
   const length = getLengthOptions(searchParams, direction);
 
-  // EN→VI passages: longer (300 words), VI→EN: shorter (70 words) due to MyMemory limit
-  const minWords = direction === "vi_to_en" ? 40 : 100;
+  if (!topic || topic.length > 80 || !/^[\p{L}\p{N}&,' -]+$/u.test(topic)) {
+    return Response.json({ error: "A valid topic is required" }, { status: 400 });
+  }
+
+  const minWords = length.unit === "chars"
+    ? clamp(Math.floor(length.value / 8), 30, 100)
+    : clamp(length.value * 18, 30, 100);
   const trimMax  = direction === "vi_to_en" ? 70 : 300;
 
-  const topics = shuffle([...EVERYDAY_TOPICS]);
+  const categoryArticles = await fetchCategoryArticles(topic);
+  const articleTitles = shuffle([...categoryArticles]);
   let passage: WikiSummary | null = null;
 
-  // Try batches of 3 in parallel for speed
-  for (let batch = 0; batch < topics.length && !passage; batch += 3) {
-    const chunk = topics.slice(batch, batch + 3);
+  for (let batch = 0; batch < Math.min(articleTitles.length, 18) && !passage; batch += 3) {
+    const chunk = articleTitles.slice(batch, batch + 3);
     const results = await Promise.all(chunk.map(fetchWikiTopic));
     passage = results.find((r): r is WikiSummary => !!r && isUsable(r, minWords)) ?? null;
   }
 
   if (!passage) {
-    const fallback = FALLBACKS[Math.floor(Math.random() * FALLBACKS.length)];
-    const text = trimByLength(fallback.text, length.unit, length.value);
-    const textVi = direction === "vi_to_en"
-      ? await translatePassageToVi(text)
-      : fallback.textVi;
+    const topicSummary = await fetchWikiTopic(topic);
+    passage = topicSummary && isUsable(topicSummary, Math.min(minWords, 40)) ? topicSummary : null;
+  }
 
-    return Response.json(
-      { ...fallback, text, textVi, wordCount: text.split(/\s+/).length },
-      { headers: { "Cache-Control": "no-store" } }
-    );
+  if (!passage) {
+    const searchResults = shuffle(await searchTopicArticles(topic));
+    const summaries = await Promise.all(searchResults.slice(0, 9).map(fetchWikiTopic));
+    passage = summaries.find((result): result is WikiSummary => !!result && isUsable(result, Math.min(minWords, 40))) ?? null;
+  }
+
+  if (!passage) {
+    return Response.json({ error: "No suitable passage found for this topic" }, { status: 502 });
   }
 
   const cleaned = passage.extract.replace(/\n+/g, " ").trim();
-  const text    = trimByLength(trimToSentences(cleaned, trimMax), length.unit, length.value);
+  const requestedText = trimByLength(trimToSentences(cleaned, trimMax), length.unit, length.value);
+  const text = direction === "vi_to_en" ? trimToChars(requestedText, 420) : requestedText;
   const textVi  = direction === "vi_to_en" ? await translatePassageToVi(text) : "";
 
   const data: PassageData = {
