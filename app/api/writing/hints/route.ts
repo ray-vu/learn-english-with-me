@@ -11,6 +11,10 @@ export interface PhraseHint {
 export interface HintsData {
   vocab: VocabHint[];
   phrases: PhraseHint[];
+  selection?: {
+    source: string;
+    translation: string;
+  };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -77,15 +81,36 @@ async function translate(text: string, langpair: string): Promise<string> {
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
-  let body: { text?: string; direction?: string };
+  let body: { text?: string; direction?: string; mode?: "passage" | "selection" };
   try {
     body = await req.json();
   } catch {
     return Response.json({ vocab: [], phrases: [] });
   }
 
-  const { text, direction } = body;
+  const { text, direction, mode = "passage" } = body;
   if (!text) return Response.json({ vocab: [], phrases: [] });
+
+  if (mode === "selection") {
+    const source = text.trim().slice(0, 300);
+    const english = await translate(source, "vi|en");
+    if (!english) {
+      return Response.json({ vocab: [], phrases: [], selection: { source, translation: "" } } satisfies HintsData);
+    }
+
+    const keyWords = extractKeyWords(english, 5);
+    const wordTranslations = await Promise.all(keyWords.map((word) => translate(word, "en|vi")));
+    const vocab = keyWords.map((word, index) => ({
+      word,
+      translation: wordTranslations[index] || "—",
+    }));
+
+    return Response.json({
+      vocab,
+      phrases: [{ phrase: english, translation: source }],
+      selection: { source, translation: english },
+    } satisfies HintsData);
+  }
 
   const keyWords = extractKeyWords(text, 6);
   const keyPhrases = extractPhrases(text, 3);
