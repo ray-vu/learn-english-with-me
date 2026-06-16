@@ -45,7 +45,7 @@ export default function TranslationEditor(props: Props) {
           placeholder={direction === "vi_to_en"
             ? "Write your English translation here…"
             : "Viết bản dịch tiếng Việt của bạn tại đây…"}
-          className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm leading-relaxed text-slate-900 shadow-sm transition placeholder-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:bg-slate-50"
+          className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-5 py-4 text-base leading-relaxed text-slate-900 shadow-sm transition placeholder-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:bg-slate-50 sm:text-sm"
           rows={7}
           lang={direction === "vi_to_en" ? "en" : "vi"}
         />

@@ -1,11 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { WritingTopicsResponse } from "@/app/api/writing/topics/route";
-import { LENGTH_LIMITS } from "../constants";
+import { useCallback, useRef, useState } from "react";
+import { LENGTH_LIMITS, WRITING_TOPIC_GROUPS } from "../constants";
 import type {
   Direction, HintsData, PageState, PassageData,
-  PassageLengthUnit, ScoreResult, WritingTopic,
+  PassageLengthUnit, ScoreResult,
 } from "../types";
 import { clampLength, countWords } from "../utils";
 
@@ -18,28 +17,11 @@ export function useWritingExercise() {
   const [scoreResult, setScoreResult] = useState<ScoreResult | null>(null);
   const [hints, setHints] = useState<HintsData | null>(null);
   const [hintsLoading, setHintsLoading] = useState(false);
-  const [topics, setTopics] = useState<WritingTopic[]>([]);
   const [selectedTopic, setSelectedTopic] = useState("");
-  const [topicsLoading, setTopicsLoading] = useState(true);
   const [lengthUnit, setLengthUnit] = useState<PassageLengthUnit>("chars");
   const [lengthValue, setLengthValue] = useState(400);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scoreRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    let active = true;
-    fetch("/api/writing/topics")
-      .then((response) => {
-        if (!response.ok) throw new Error("topics_fetch_error");
-        return response.json() as Promise<WritingTopicsResponse>;
-      })
-      .then((data) => { if (active) setTopics(data.topics); })
-      .catch(() => {
-        if (active) setErrorMsg("Không thể tải danh sách chủ đề. Vui lòng tải lại trang.");
-      })
-      .finally(() => { if (active) setTopicsLoading(false); });
-    return () => { active = false; };
-  }, []);
 
   const loadHints = useCallback(async (text: string, dir: Direction) => {
     setHintsLoading(true);
@@ -155,7 +137,7 @@ export function useWritingExercise() {
     changeLengthUnit, changeTopic, clearTranslation, direction, errorMsg,
     hints, hintsLoading, isBusy, isLoading, lengthUnit, lengthValue, limits, loadPassage,
     normalizeLength, pageState, passage, scoreRef, scoreResult, scoreTranslation,
-    selectedTopic, setLengthValue, setUserText, textareaRef, topics, topicsLoading,
+    selectedTopic, setLengthValue, setUserText, textareaRef, topicGroups: WRITING_TOPIC_GROUPS,
     userText, wordCount,
   };
 }

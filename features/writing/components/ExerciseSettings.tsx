@@ -1,5 +1,6 @@
-import { RefreshCw, SlidersHorizontal, Tag } from "lucide-react";
-import type { PassageLengthUnit, WritingTopic } from "../types";
+import { RefreshCw, SlidersHorizontal } from "lucide-react";
+import TopicPicker from "./TopicPicker";
+import type { PassageLengthUnit, WritingTopicGroup } from "../types";
 
 interface Props {
   activeMax: number;
@@ -10,8 +11,7 @@ interface Props {
   lengthValue: number;
   limits: { min: number; max: number; step: number };
   selectedTopic: string;
-  topics: WritingTopic[];
-  topicsLoading: boolean;
+  topicGroups: WritingTopicGroup[];
   onGenerate: () => void;
   onLengthBlur: () => void;
   onLengthChange: (value: number) => void;
@@ -21,7 +21,7 @@ interface Props {
 
 export default function ExerciseSettings(props: Props) {
   const { activeMax, canGenerate, disabled, isLoading, lengthUnit, lengthValue, limits,
-    selectedTopic, topics, topicsLoading, onGenerate, onLengthBlur,
+    selectedTopic, topicGroups, onGenerate, onLengthBlur,
     onLengthChange, onUnitChange, onTopicChange } = props;
 
   return (
@@ -37,27 +37,12 @@ export default function ExerciseSettings(props: Props) {
           </div>
         </div>
 
-        <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-[minmax(180px,1fr)_minmax(110px,140px)_minmax(100px,120px)] lg:grid-cols-[minmax(180px,1fr)_130px_110px_auto]">
-          <label className="col-span-2 min-w-0 sm:col-span-1">
-            <span className="sr-only">Chủ đề bài dịch</span>
-            <div className="relative">
-              <Tag className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-              <select
-                value={selectedTopic}
-                onChange={(event) => onTopicChange(event.target.value)}
-                disabled={topicsLoading || disabled}
-                className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-8 text-sm font-medium text-slate-700 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-50"
-              >
-                <option value="">{topicsLoading ? "Đang tải chủ đề..." : "Chọn chủ đề bắt buộc"}</option>
-                {topics.map((topic) => <option key={topic.id} value={topic.label}>{topic.label}</option>)}
-              </select>
-            </div>
-          </label>
+        <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-[minmax(110px,140px)_minmax(100px,120px)_1fr] lg:grid-cols-[130px_110px_auto]">
           <select
             value={lengthUnit}
             onChange={(event) => onUnitChange(event.target.value as PassageLengthUnit)}
             disabled={disabled}
-            className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-50"
+            className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-base font-medium text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-50 sm:text-sm"
             aria-label="Đơn vị độ dài bài dịch"
           >
             <option value="chars">Ký tự</option>
@@ -72,7 +57,7 @@ export default function ExerciseSettings(props: Props) {
             onChange={(event) => onLengthChange(Number(event.target.value))}
             onBlur={onLengthBlur}
             disabled={disabled}
-            className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-50"
+            className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-base font-semibold text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-50 sm:text-sm"
             aria-label="Độ dài bài dịch"
           />
           <button
@@ -85,9 +70,17 @@ export default function ExerciseSettings(props: Props) {
           </button>
         </div>
       </div>
+      <div className="mt-3">
+        <TopicPicker
+          disabled={disabled}
+          groups={topicGroups}
+          selectedTopic={selectedTopic}
+          onTopicChange={onTopicChange}
+        />
+      </div>
       <p className="mt-2 text-xs text-slate-400">
         {!selectedTopic
-          ? "Chọn một chủ đề tiếng Anh từ Wikipedia để bật nút Tạo bài."
+          ? "Chọn một topic để bật nút Tạo bài."
           : lengthUnit === "lines"
             ? "Mỗi dòng tương ứng một câu nội dung; số dòng hiển thị thực tế còn phụ thuộc kích thước màn hình."
             : `Giới hạn hiện tại: ${limits.min}-${activeMax} ký tự.`}
