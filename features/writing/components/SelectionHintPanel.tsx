@@ -1,7 +1,8 @@
 import { Languages, X } from "lucide-react";
-import type { HintsData } from "../types";
+import type { Direction, HintsData } from "../types";
 
 interface Props {
+  direction: Direction;
   error: string;
   result: HintsData | null;
   selectedText: string;
@@ -9,18 +10,23 @@ interface Props {
 }
 
 export default function SelectionHintPanel({
+  direction,
   error,
   result,
   selectedText,
   onClose,
 }: Props) {
+  const targetLabel = direction === "en_to_vi" ? "Tiếng Việt" : "Tiếng Anh";
+
   return (
     <div className="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/70 p-3 animate-fade-in">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-2">
           <Languages className="mt-0.5 h-4 w-4 flex-shrink-0 text-indigo-600" aria-hidden="true" />
           <div className="min-w-0">
-            <div className="text-xs font-semibold text-indigo-900">Gợi ý cho đoạn đã chọn</div>
+            <div className="text-xs font-semibold text-indigo-900">
+              Gợi ý {targetLabel} cho đoạn đã chọn
+            </div>
             <p className="mt-1 line-clamp-2 text-xs text-slate-500">&ldquo;{selectedText}&rdquo;</p>
           </div>
         </div>
@@ -39,7 +45,9 @@ export default function SelectionHintPanel({
         <div className="mt-3 space-y-3">
           {result.selection?.translation && (
             <div className="rounded-lg bg-white px-3 py-2.5">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Câu gợi ý</div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Câu gợi ý
+              </div>
               <p className="mt-1 text-sm font-medium text-slate-800">{result.selection.translation}</p>
             </div>
           )}

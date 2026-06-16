@@ -1,5 +1,5 @@
 import { BookOpen, ExternalLink, Loader2, RefreshCw, Star } from "lucide-react";
-import SelectableVietnamesePassage from "./SelectableVietnamesePassage";
+import SelectablePassage from "./SelectablePassage";
 import type { Direction, PageState, PassageData } from "../types";
 
 interface Props {
@@ -16,9 +16,9 @@ function PassageContent({ direction, passage }: {
   passage: PassageData;
 }) {
   if (direction === "vi_to_en" && passage.textVi) {
-    return <SelectableVietnamesePassage text={passage.textVi} />;
+    return <SelectablePassage direction={direction} text={passage.textVi} />;
   }
-  return <p className="text-base leading-relaxed text-slate-800" lang="en">{passage.text}</p>;
+  return <SelectablePassage direction={direction} text={passage.text} />;
 }
 
 export default function PassageCard({
