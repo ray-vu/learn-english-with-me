@@ -17,7 +17,7 @@ export default function WritingScreen() {
     changeTopic, clearTranslation, direction, errorMsg, hints, hintsLoading,
     isBusy, isLoading, lengthUnit, lengthValue, limits, loadPassage, normalizeLength,
     pageState, passage, scoreRef, scoreResult, scoreTranslation, selectedTopic,
-    setLengthValue, setUserText, textareaRef, topics, topicsLoading, userText,
+    setLengthValue, setUserText, textareaRef, topicGroups, userText,
     wordCount,
   } = exercise;
 
@@ -34,8 +34,7 @@ export default function WritingScreen() {
         lengthValue={lengthValue}
         limits={limits}
         selectedTopic={selectedTopic}
-        topics={topics}
-        topicsLoading={topicsLoading}
+        topicGroups={topicGroups}
         onGenerate={loadPassage}
         onLengthBlur={normalizeLength}
         onLengthChange={setLengthValue}
