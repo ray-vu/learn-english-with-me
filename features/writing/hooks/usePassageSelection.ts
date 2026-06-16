@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { HintsData } from "../types";
+import type { Direction, HintsData } from "../types";
 
 export interface SelectionAction {
   text: string;
@@ -9,7 +9,7 @@ export interface SelectionAction {
   top: number;
 }
 
-export function useVietnameseSelection() {
+export function usePassageSelection(direction: Direction) {
   const passageRef = useRef<HTMLParagraphElement>(null);
   const [selection, setSelection] = useState<SelectionAction | null>(null);
   const [result, setResult] = useState<HintsData | null>(null);
@@ -51,7 +51,7 @@ export function useVietnameseSelection() {
       const response = await fetch("/api/writing/hints", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: selection.text, direction: "vi_to_en", mode: "selection" }),
+        body: JSON.stringify({ text: selection.text, direction, mode: "selection" }),
       });
       if (!response.ok) throw new Error("selection_hint_error");
       setResult(await response.json());
@@ -61,7 +61,7 @@ export function useVietnameseSelection() {
     } finally {
       setLoading(false);
     }
-  }, [selection]);
+  }, [direction, selection]);
 
   const close = useCallback(() => {
     setSelection(null);

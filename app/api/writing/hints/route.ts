@@ -93,12 +93,14 @@ export async function POST(req: Request) {
 
   if (mode === "selection") {
     const source = text.trim().slice(0, 300);
-    const english = await translate(source, "vi|en");
-    if (!english) {
+    const isViToEn = direction === "vi_to_en";
+    const translation = await translate(source, isViToEn ? "vi|en" : "en|vi");
+    if (!translation) {
       return Response.json({ vocab: [], phrases: [], selection: { source, translation: "" } } satisfies HintsData);
     }
 
-    const keyWords = extractKeyWords(english, 5);
+    const englishSource = isViToEn ? translation : source;
+    const keyWords = extractKeyWords(englishSource, 5);
     const wordTranslations = await Promise.all(keyWords.map((word) => translate(word, "en|vi")));
     const vocab = keyWords.map((word, index) => ({
       word,
@@ -107,8 +109,10 @@ export async function POST(req: Request) {
 
     return Response.json({
       vocab,
-      phrases: [{ phrase: english, translation: source }],
-      selection: { source, translation: english },
+      phrases: isViToEn
+        ? [{ phrase: translation, translation: source }]
+        : [{ phrase: source, translation }],
+      selection: { source, translation },
     } satisfies HintsData);
   }
 
